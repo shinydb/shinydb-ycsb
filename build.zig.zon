@@ -1,0 +1,22 @@
+.{
+    .name = .shinydb_ycsb,
+    .version = "0.1.0",
+    .fingerprint = 0xb3d433b2a569cb34,
+    .minimum_zig_version = "0.16.0-dev.1859+212968c57",
+    .dependencies = .{
+        .proto = .{
+            .path = "../proto",
+        },
+        .shinydb_zig_client = .{
+            .path = "../shinydb-zig-client",
+        },
+        .bson = .{
+            .path = "../bson",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
