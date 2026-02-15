@@ -1,4 +1,6 @@
 const std = @import("std");
+const Io = std.Io;
+const Dir = Io.Dir;
 const Metrics = @import("metrics.zig").Metrics;
 const MetricsTracker = @import("metrics.zig").MetricsTracker;
 const milliTimestamp = @import("metrics.zig").milliTimestamp;
@@ -37,6 +39,7 @@ pub const BenchmarkResult = struct {
         p50_latency_us: u64,
         p95_latency_us: u64,
         p99_latency_us: u64,
+        p999_latency_us: u64,
         error_rate_percent: f64,
     };
 
@@ -59,6 +62,7 @@ pub const BenchmarkResult = struct {
         p50_latency_us: u64,
         p95_latency_us: u64,
         p99_latency_us: u64,
+        p999_latency_us: u64,
     };
 
     pub const LatencyHistogram = struct {
@@ -77,9 +81,10 @@ pub const BenchmarkResult = struct {
 /// Result exporter for different formats
 pub const ResultExporter = struct {
     allocator: std.mem.Allocator,
+    io: Io,
 
-    pub fn init(allocator: std.mem.Allocator) ResultExporter {
-        return .{ .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator, io: Io) ResultExporter {
+        return .{ .allocator = allocator, .io = io };
     }
 
     /// Create BenchmarkResult from Metrics
@@ -125,6 +130,7 @@ pub const ResultExporter = struct {
                 .p50_latency_us = metrics.percentile(0.50),
                 .p95_latency_us = metrics.percentile(0.95),
                 .p99_latency_us = metrics.percentile(0.99),
+                .p999_latency_us = metrics.percentile(0.999),
                 .error_rate_percent = error_rate,
             },
             .per_operation = null,
@@ -166,6 +172,7 @@ pub const ResultExporter = struct {
             .p50_latency_us = m.percentile(0.50),
             .p95_latency_us = m.percentile(0.95),
             .p99_latency_us = m.percentile(0.99),
+            .p999_latency_us = m.percentile(0.999),
         };
     }
 
@@ -260,6 +267,7 @@ pub const ResultExporter = struct {
         try writer.print("    \"p50_latency_us\": {d},\n", .{result.summary.p50_latency_us});
         try writer.print("    \"p95_latency_us\": {d},\n", .{result.summary.p95_latency_us});
         try writer.print("    \"p99_latency_us\": {d},\n", .{result.summary.p99_latency_us});
+        try writer.print("    \"p999_latency_us\": {d},\n", .{result.summary.p999_latency_us});
         try writer.print("    \"error_rate_percent\": {d:.4}\n", .{result.summary.error_rate_percent});
         try writer.writeAll("  }");
 
@@ -311,7 +319,8 @@ pub const ResultExporter = struct {
         try writer.print("      \"max_latency_us\": {d},\n", .{stats.max_latency_us});
         try writer.print("      \"p50_latency_us\": {d},\n", .{stats.p50_latency_us});
         try writer.print("      \"p95_latency_us\": {d},\n", .{stats.p95_latency_us});
-        try writer.print("      \"p99_latency_us\": {d}\n", .{stats.p99_latency_us});
+        try writer.print("      \"p99_latency_us\": {d},\n", .{stats.p99_latency_us});
+        try writer.print("      \"p999_latency_us\": {d}\n", .{stats.p999_latency_us});
     }
 
     /// Export result as CSV
@@ -320,7 +329,7 @@ pub const ResultExporter = struct {
         try writer.writeAll("name,workload,timestamp,duration_ms,record_count,operation_count,");
         try writer.writeAll("total_ops,successful_ops,failed_ops,throughput_ops_sec,");
         try writer.writeAll("avg_latency_us,min_latency_us,max_latency_us,");
-        try writer.writeAll("p50_latency_us,p95_latency_us,p99_latency_us,error_rate_percent\n");
+        try writer.writeAll("p50_latency_us,p95_latency_us,p99_latency_us,p999_latency_us,error_rate_percent\n");
 
         // Data row
         try writer.print("{s},{s},{d},{d},{d},{d},", .{
@@ -342,10 +351,11 @@ pub const ResultExporter = struct {
             result.summary.min_latency_us,
             result.summary.max_latency_us,
         });
-        try writer.print("{d},{d},{d},{d:.4}\n", .{
+        try writer.print("{d},{d},{d},{d},{d:.4}\n", .{
             result.summary.p50_latency_us,
             result.summary.p95_latency_us,
             result.summary.p99_latency_us,
+            result.summary.p999_latency_us,
             result.summary.error_rate_percent,
         });
     }
@@ -386,6 +396,7 @@ pub const ResultExporter = struct {
         try writer.print("║    P50:           {d} µs{s:<40}  ║\n", .{ result.summary.p50_latency_us, "" });
         try writer.print("║    P95:           {d} µs{s:<40}  ║\n", .{ result.summary.p95_latency_us, "" });
         try writer.print("║    P99:           {d} µs{s:<40}  ║\n", .{ result.summary.p99_latency_us, "" });
+        try writer.print("║    P99.9:         {d} µs{s:<40}  ║\n", .{ result.summary.p999_latency_us, "" });
 
         // Per-operation stats
         if (result.per_operation) |per_op| {
@@ -441,10 +452,82 @@ pub const ResultExporter = struct {
         try writer.writeAll("╚══════════════════════════════════════════════════════════════════╝\n");
     }
 
-    /// Export to file based on format (TODO: implement file write for Zig 0.16)
-    pub fn exportToFile(_: *ResultExporter, _: BenchmarkResult, path: []const u8, _: config_mod.ExportFormat) !void {
-        std.debug.print("Note: File export to {s} not yet implemented for Zig 0.16\n", .{path});
-        std.debug.print("Use --export_format=human to see results in terminal\n", .{});
+    /// Export to file based on format
+    pub fn exportToFile(self: *ResultExporter, result: BenchmarkResult, path: []const u8, format: config_mod.ExportFormat) !void {
+        const file = try Dir.createFile(.cwd(), self.io, path, .{});
+        defer file.close(self.io);
+
+        var buf: [8192]u8 = undefined;
+        var file_writer = file.writer(self.io, &buf);
+        const writer = &file_writer.interface;
+
+        switch (format) {
+            .json => try self.exportJson(result, writer),
+            .csv => try self.exportCsv(result, writer),
+            .ycsb => try self.exportYcsb(result, writer),
+            .human => try self.exportHuman(result, writer),
+        }
+
+        try file_writer.flush();
+        std.debug.print("Results exported to: {s}\n", .{path});
+    }
+
+    /// Export in standard YCSB text format (compatible with YCSB analysis tools)
+    /// Format: [SECTION], Metric, Value
+    pub fn exportYcsb(_: *ResultExporter, result: BenchmarkResult, writer: anytype) !void {
+        // Overall metrics
+        try writer.print("[OVERALL], RunTime(ms), {d}\n", .{result.duration_ms});
+        try writer.print("[OVERALL], Throughput(ops/sec), {d:.2}\n", .{result.summary.throughput_ops_sec});
+        try writer.print("[OVERALL], Operations, {d}\n", .{result.summary.total_ops});
+        try writer.print("[OVERALL], SuccessfulOperations, {d}\n", .{result.summary.successful_ops});
+        try writer.print("[OVERALL], FailedOperations, {d}\n", .{result.summary.failed_ops});
+        try writer.print("[OVERALL], ErrorRate(%), {d:.4}\n", .{result.summary.error_rate_percent});
+
+        // Overall latency
+        try writer.print("[OVERALL], AverageLatency(us), {d:.2}\n", .{result.summary.avg_latency_us});
+        try writer.print("[OVERALL], MinLatency(us), {d}\n", .{result.summary.min_latency_us});
+        try writer.print("[OVERALL], MaxLatency(us), {d}\n", .{result.summary.max_latency_us});
+        try writer.print("[OVERALL], 50thPercentileLatency(us), {d}\n", .{result.summary.p50_latency_us});
+        try writer.print("[OVERALL], 95thPercentileLatency(us), {d}\n", .{result.summary.p95_latency_us});
+        try writer.print("[OVERALL], 99thPercentileLatency(us), {d}\n", .{result.summary.p99_latency_us});
+        try writer.print("[OVERALL], 99.9thPercentileLatency(us), {d}\n", .{result.summary.p999_latency_us});
+
+        // Per-operation stats in standard YCSB format
+        if (result.per_operation) |per_op| {
+            inline for (@typeInfo(BenchmarkResult.PerOperationResults).@"struct".fields) |field| {
+                if (@field(per_op, field.name)) |stats| {
+                    const tag = comptime blk: {
+                        var buf: [field.name.len]u8 = undefined;
+                        for (field.name, 0..) |c, i| {
+                            buf[i] = if (c >= 'a' and c <= 'z') c - 32 else if (c == '_') '-' else c;
+                        }
+                        break :blk buf;
+                    };
+                    const section = &tag;
+                    try writer.print("[{s}], Operations, {d}\n", .{ section, stats.total_ops });
+                    try writer.print("[{s}], AverageLatency(us), {d:.2}\n", .{ section, stats.avg_latency_us });
+                    try writer.print("[{s}], MinLatency(us), {d}\n", .{ section, stats.min_latency_us });
+                    try writer.print("[{s}], MaxLatency(us), {d}\n", .{ section, stats.max_latency_us });
+                    try writer.print("[{s}], 50thPercentileLatency(us), {d}\n", .{ section, stats.p50_latency_us });
+                    try writer.print("[{s}], 95thPercentileLatency(us), {d}\n", .{ section, stats.p95_latency_us });
+                    try writer.print("[{s}], 99thPercentileLatency(us), {d}\n", .{ section, stats.p99_latency_us });
+                    try writer.print("[{s}], 99.9thPercentileLatency(us), {d}\n", .{ section, stats.p999_latency_us });
+                }
+            }
+        }
+
+        // Histogram in YCSB format
+        if (result.histogram) |hist| {
+            for (hist.buckets) |bucket| {
+                if (bucket.count > 0) {
+                    if (bucket.upper_bound_us == std.math.maxInt(u64)) {
+                        try writer.print("[HISTOGRAM], >{d}us, {d}\n", .{ bucket.lower_bound_us, bucket.count });
+                    } else {
+                        try writer.print("[HISTOGRAM], {d}-{d}us, {d}\n", .{ bucket.lower_bound_us, bucket.upper_bound_us, bucket.count });
+                    }
+                }
+            }
+        }
     }
 
     /// Export to stdout using std.debug.print (human format only)
@@ -467,6 +550,7 @@ pub const ResultExporter = struct {
         std.debug.print("║    Average:       {d:.2} µs                                       ║\n", .{result.summary.avg_latency_us});
         std.debug.print("║    P50:           {d} µs                                          ║\n", .{result.summary.p50_latency_us});
         std.debug.print("║    P99:           {d} µs                                          ║\n", .{result.summary.p99_latency_us});
+        std.debug.print("║    P99.9:         {d} µs                                          ║\n", .{result.summary.p999_latency_us});
         std.debug.print("╚══════════════════════════════════════════════════════════════════╝\n", .{});
     }
 };

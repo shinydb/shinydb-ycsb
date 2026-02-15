@@ -3,6 +3,7 @@ const shinydb = @import("shinydb_zig_client");
 const ShinyDbClient = shinydb.ShinyDbClient;
 const Query = shinydb.Query;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const proto = @import("proto");
 
 const distributions = @import("../distributions.zig");
@@ -52,19 +53,20 @@ pub const WorkloadD = struct {
     key_distribution: distributions.Distribution,
     op_chooser: operation_chooser.OperationChooser,
     keys: std.ArrayList(u128),
+    io: Io,
     metrics_tracker: metrics.MetricsTracker,
     next_key_id: std.atomic.Value(u64),
     field_data: []const u8,
 
     pub const Config = struct {
-        record_count: usize = 10_000,
-        operation_count: usize = 10_000,
+        record_count: usize = 1_000,
+        operation_count: usize = 1_000,
         document_size: usize = 1024,
         thread_count: usize = 1,
-        warmup_ops: usize = 1_000,
+        warmup_ops: usize = 100,
     };
 
-    pub fn init(allocator: Allocator, client: *ShinyDbClient, space_name: []const u8, store_name: []const u8, config: Config) !WorkloadD {
+    pub fn init(allocator: Allocator, io: Io, client: *ShinyDbClient, space_name: []const u8, store_name: []const u8, config: Config) !WorkloadD {
         const prng = try allocator.create(std.Random.DefaultPrng);
         prng.* = std.Random.DefaultPrng.init(@intCast(metrics.milliTimestamp()));
         const random = prng.random();
@@ -94,8 +96,9 @@ pub const WorkloadD = struct {
             .prng = prng,
             .key_distribution = key_dist,
             .op_chooser = op_choose,
+            .io = io,
             .keys = std.ArrayList(u128).empty,
-            .metrics_tracker = try metrics.MetricsTracker.init(allocator),
+            .metrics_tracker = try metrics.MetricsTracker.init(allocator, io),
             .next_key_id = std.atomic.Value(u64).init(config.record_count),
             .field_data = field_data,
         };

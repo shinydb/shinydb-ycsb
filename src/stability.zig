@@ -1,5 +1,6 @@
 const std = @import("std");
-const posix = std.posix;
+const builtin = @import("builtin");
+const Io = std.Io;
 const metrics_mod = @import("metrics.zig");
 const Metrics = metrics_mod.Metrics;
 const Timer = metrics_mod.Timer;
@@ -41,6 +42,7 @@ pub const StabilityResult = struct {
 /// Long-running stability test runner
 pub const StabilityTester = struct {
     allocator: std.mem.Allocator,
+    io: Io,
     config: StabilityConfig,
 
     // Tracking state
@@ -63,12 +65,13 @@ pub const StabilityTester = struct {
         performance_degradation_threshold: f64 = 20.0, // 20% degradation
     };
 
-    pub fn init(allocator: std.mem.Allocator, config: StabilityConfig) !*StabilityTester {
+    pub fn init(allocator: std.mem.Allocator, io: Io, config: StabilityConfig) !*StabilityTester {
         const tester = try allocator.create(StabilityTester);
         tester.* = .{
             .allocator = allocator,
+            .io = io,
             .config = config,
-            .metrics = try Metrics.init(allocator),
+            .metrics = try Metrics.init(allocator, io),
             .memory_snapshots = .empty,
             .throughput_samples = .empty,
             .start_time = 0,
@@ -438,15 +441,15 @@ pub const TrackingAllocator = struct {
         };
     }
 
-    /// Get process memory info from OS (platform-specific)
-    pub fn getProcessMemory() ?usize {
-        // Try to get RSS from /proc/self/statm on Linux
-        if (@import("builtin").os.tag == .linux) {
-            const file = std.fs.openFileAbsolute("/proc/self/statm", .{}) catch return null;
-            defer file.close();
+    /// Get process memory info from OS (cross-platform)
+    pub fn getProcessMemory(io: Io) ?usize {
+        if (builtin.os.tag == .linux) {
+            // Try to get RSS from /proc/self/statm on Linux
+            const file = std.Io.Dir.openFileAbsolute(io, "/proc/self/statm", .{}) catch return null;
+            defer file.close(io);
 
             var buf: [256]u8 = undefined;
-            const len = file.read(&buf) catch return null;
+            const len = file.readStreaming(io, &.{&buf}) catch return null;
             const content = buf[0..len];
 
             // Parse RSS (second field)
@@ -456,15 +459,14 @@ pub const TrackingAllocator = struct {
                 const rss = std.fmt.parseInt(usize, std.mem.trim(u8, rss_pages, " \n"), 10) catch return null;
                 return rss * 4096; // Pages to bytes
             }
-        }
-
-        // On macOS, use rusage
-        if (@import("builtin").os.tag == .macos) {
-            var usage: posix.rusage = undefined;
-            const result = posix.getrusage(posix.rusage.SELF, &usage);
-            if (result == 0) {
-                return @intCast(usage.maxrss);
-            }
+        } else if (builtin.os.tag == .windows) {
+            // On Windows, use current_bytes from tracking allocator as approximation
+            // Full Windows support would use GetProcessMemoryInfo from kernel32
+            return null;
+        } else if (builtin.os.tag == .macos) {
+            // On macOS, use rusage for max RSS
+            const rusage = std.posix.getrusage(std.posix.rusage.SELF);
+            return @intCast(rusage.maxrss);
         }
 
         return null;
@@ -474,8 +476,8 @@ pub const TrackingAllocator = struct {
 /// Convenience functions for common stability tests
 pub const StabilityTests = struct {
     /// Run a 1-hour endurance test
-    pub fn oneHourEndurance(allocator: std.mem.Allocator) !*StabilityTester {
-        return try StabilityTester.init(allocator, .{
+    pub fn oneHourEndurance(allocator: std.mem.Allocator, io: Io) !*StabilityTester {
+        return try StabilityTester.init(allocator, io, .{
             .duration_minutes = 60,
             .memory_check_interval_seconds = 60,
             .throughput_sample_interval_seconds = 10,
@@ -483,8 +485,8 @@ pub const StabilityTests = struct {
     }
 
     /// Run a 24-hour stability test
-    pub fn twentyFourHourStability(allocator: std.mem.Allocator) !*StabilityTester {
-        return try StabilityTester.init(allocator, .{
+    pub fn twentyFourHourStability(allocator: std.mem.Allocator, io: Io) !*StabilityTester {
+        return try StabilityTester.init(allocator, io, .{
             .duration_minutes = 24 * 60,
             .memory_check_interval_seconds = 300, // Every 5 minutes
             .throughput_sample_interval_seconds = 60, // Every minute
@@ -492,8 +494,8 @@ pub const StabilityTests = struct {
     }
 
     /// Run a quick 5-minute test (for CI/CD)
-    pub fn quickStabilityCheck(allocator: std.mem.Allocator) !*StabilityTester {
-        return try StabilityTester.init(allocator, .{
+    pub fn quickStabilityCheck(allocator: std.mem.Allocator, io: Io) !*StabilityTester {
+        return try StabilityTester.init(allocator, io, .{
             .duration_minutes = 5,
             .memory_check_interval_seconds = 30,
             .throughput_sample_interval_seconds = 5,
@@ -501,8 +503,8 @@ pub const StabilityTests = struct {
     }
 
     /// Run a custom duration test
-    pub fn custom(allocator: std.mem.Allocator, duration_minutes: u32) !*StabilityTester {
-        return try StabilityTester.init(allocator, .{
+    pub fn custom(allocator: std.mem.Allocator, io: Io, duration_minutes: u32) !*StabilityTester {
+        return try StabilityTester.init(allocator, io, .{
             .duration_minutes = duration_minutes,
             .memory_check_interval_seconds = @max(30, duration_minutes),
             .throughput_sample_interval_seconds = @max(5, duration_minutes / 12),

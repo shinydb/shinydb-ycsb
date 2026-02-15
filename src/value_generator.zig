@@ -169,9 +169,9 @@ pub const ValueGenerator = struct {
         defer self.allocator.free(active_str);
         try buffer.appendSlice(active_str);
 
-        // Created timestamp
-        const ts = std.posix.clock_gettime(std.posix.CLOCK.REALTIME) catch return error.TimestampError;
-        const ts_str = try std.fmt.allocPrint(self.allocator, "\"created_at\":{d},", .{ts.sec});
+        // Created timestamp (cross-platform)
+        const ts_sec = @divTrunc(@import("metrics.zig").milliTimestamp(), 1000);
+        const ts_str = try std.fmt.allocPrint(self.allocator, "\"created_at\":{d},", .{ts_sec});
         defer self.allocator.free(ts_str);
         try buffer.appendSlice(ts_str);
 
@@ -282,11 +282,7 @@ test "variable value generation" {
     var prng = std.Random.DefaultPrng.init(0);
     const random = prng.random();
 
-    const config = ValueConfig{
-        .value_type = .variable,
-        .min_size = 50,
-        .max_size = 150
-    };
+    const config = ValueConfig{ .value_type = .variable, .min_size = 50, .max_size = 150 };
     var gen = ValueGenerator.init(std.testing.allocator, random, config);
 
     const value = try gen.generate();

@@ -312,6 +312,7 @@ fn parseJsonResult(allocator: std.mem.Allocator, json_content: []const u8) !Benc
         .p50_latency_us = @intCast(findJsonInt(json_content, "p50_latency_us") orelse 0),
         .p95_latency_us = @intCast(findJsonInt(json_content, "p95_latency_us") orelse 0),
         .p99_latency_us = @intCast(findJsonInt(json_content, "p99_latency_us") orelse 0),
+        .p999_latency_us = @intCast(findJsonInt(json_content, "p999_latency_us") orelse 0),
         .error_rate_percent = findJsonFloat(json_content, "error_rate_percent") orelse 0,
     };
 

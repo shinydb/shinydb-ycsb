@@ -7,9 +7,9 @@ pub const BenchmarkConfig = struct {
     host: []const u8 = "127.0.0.1",
     port: u16 = 23469,
 
-    // Workload settings
-    record_count: u64 = 10000,
-    operation_count: u64 = 10000,
+    // Workload settings (YCSB standard defaults)
+    record_count: u64 = 1000,
+    operation_count: u64 = 1000,
     document_size: u32 = 1024,
     store_id: u16 = 1,
 
@@ -18,7 +18,7 @@ pub const BenchmarkConfig = struct {
     batch_size: u32 = 100,
 
     // Timing settings
-    warmup_ops: u64 = 1000,
+    warmup_ops: u64 = 100,
     warmup_seconds: u32 = 10,
     measurement_seconds: u32 = 60,
     cooldown_seconds: u32 = 5,
@@ -29,7 +29,7 @@ pub const BenchmarkConfig = struct {
     update_ratio: f64 = 0.5,
     insert_ratio: f64 = 0.0,
     scan_ratio: f64 = 0.0,
-    scan_length: u32 = 100,
+    scan_length: u32 = 10,
 
     // Output settings
     export_format: ExportFormat = .human,
@@ -50,11 +50,13 @@ pub const ExportFormat = enum {
     human,
     json,
     csv,
+    ycsb, // Standard YCSB text format
 
     pub fn fromString(s: []const u8) ?ExportFormat {
         if (std.mem.eql(u8, s, "human")) return .human;
         if (std.mem.eql(u8, s, "json")) return .json;
         if (std.mem.eql(u8, s, "csv")) return .csv;
+        if (std.mem.eql(u8, s, "ycsb")) return .ycsb;
         return null;
     }
 };
@@ -245,8 +247,8 @@ pub fn generateDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
         \\port: 23469
         \\
         \\# Workload Settings
-        \\record_count: 10000
-        \\operation_count: 10000
+        \\record_count: 1000
+        \\operation_count: 1000
         \\document_size: 1024
         \\store_id: 1
         \\
@@ -255,7 +257,7 @@ pub fn generateDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
         \\batch_size: 100
         \\
         \\# Timing Settings
-        \\warmup_ops: 1000
+        \\warmup_ops: 100
         \\warmup_seconds: 10
         \\measurement_seconds: 60
         \\cooldown_seconds: 5
@@ -266,7 +268,7 @@ pub fn generateDefaultConfig(allocator: std.mem.Allocator) ![]const u8 {
         \\update_ratio: 0.5
         \\insert_ratio: 0.0
         \\scan_ratio: 0.0
-        \\scan_length: 100
+        \\scan_length: 10
         \\
         \\# Output Settings
         \\export_format: human

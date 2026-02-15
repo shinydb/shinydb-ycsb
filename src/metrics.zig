@@ -1,25 +1,65 @@
 const std = @import("std");
-const posix = std.posix;
+const builtin = @import("builtin");
+const native_os = builtin.os.tag;
+const Io = std.Io;
 
-/// Get current time in milliseconds since Unix epoch
+/// Get current time in milliseconds since Unix epoch.
+/// Cross-platform: works on Linux, macOS, and Windows.
 pub fn milliTimestamp() i64 {
-    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch return 0;
-    const seconds: i64 = @intCast(ts.sec);
-    const nanos: i64 = @intCast(ts.nsec);
-    return seconds * 1000 + @divTrunc(nanos, 1_000_000);
+    switch (native_os) {
+        .windows => {
+            const ft = std.os.windows.ntdll.RtlGetSystemTimePrecise();
+            const unix_100ns = ft - 116444736000000000;
+            return @intCast(@divTrunc(unix_100ns, 10_000));
+        },
+        .wasi => {
+            var ns: std.os.wasi.timestamp_t = undefined;
+            return switch (std.os.wasi.clock_time_get(.REALTIME, 1_000_000, &ns)) {
+                .SUCCESS => @as(i64, @intCast(@divTrunc(ns, 1_000_000))),
+                else => 0,
+            };
+        },
+        else => {
+            // POSIX systems (Linux, macOS, BSD, etc.)
+            var ts: std.c.timespec = undefined;
+            _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+            const seconds: i64 = @intCast(ts.sec);
+            const nanos: i64 = @intCast(ts.nsec);
+            return seconds * 1000 + @divTrunc(nanos, 1_000_000);
+        },
+    }
 }
 
-/// Get current time in microseconds since Unix epoch
+/// Get current time in microseconds since Unix epoch.
+/// Cross-platform: works on Linux, macOS, and Windows.
 pub fn microTimestamp() i64 {
-    const ts = posix.clock_gettime(posix.CLOCK.REALTIME) catch return 0;
-    const seconds: i64 = @intCast(ts.sec);
-    const nanos: i64 = @intCast(ts.nsec);
-    return seconds * 1_000_000 + @divTrunc(nanos, 1_000);
+    switch (native_os) {
+        .windows => {
+            const ft = std.os.windows.ntdll.RtlGetSystemTimePrecise();
+            const unix_100ns = ft - 116444736000000000;
+            return @intCast(@divTrunc(unix_100ns, 10));
+        },
+        .wasi => {
+            var ns: std.os.wasi.timestamp_t = undefined;
+            return switch (std.os.wasi.clock_time_get(.REALTIME, 1_000, &ns)) {
+                .SUCCESS => @as(i64, @intCast(@divTrunc(ns, 1_000))),
+                else => 0,
+            };
+        },
+        else => {
+            var ts: std.c.timespec = undefined;
+            _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+            const seconds: i64 = @intCast(ts.sec);
+            const nanos: i64 = @intCast(ts.nsec);
+            return seconds * 1_000_000 + @divTrunc(nanos, 1_000);
+        },
+    }
 }
 
 /// Performance metrics collector for benchmarks
 pub const Metrics = struct {
     allocator: std.mem.Allocator,
+    io: Io,
 
     // Timing
     start_time: i64,
@@ -32,22 +72,23 @@ pub const Metrics = struct {
 
     // Latency tracking (microseconds)
     latencies: std.ArrayList(u64),
-    latencies_mutex: std.Thread.Mutex,
+    latencies_mutex: Io.Mutex,
     min_latency: std.atomic.Value(u64),
     max_latency: std.atomic.Value(u64),
     total_latency: std.atomic.Value(u64),
 
-    pub fn init(allocator: std.mem.Allocator) !*Metrics {
+    pub fn init(allocator: std.mem.Allocator, io: Io) !*Metrics {
         const metrics = try allocator.create(Metrics);
         metrics.* = Metrics{
             .allocator = allocator,
+            .io = io,
             .start_time = 0,
             .end_time = 0,
             .total_ops = std.atomic.Value(u64).init(0),
             .successful_ops = std.atomic.Value(u64).init(0),
             .failed_ops = std.atomic.Value(u64).init(0),
             .latencies = std.ArrayList(u64){},
-            .latencies_mutex = .{},
+            .latencies_mutex = Io.Mutex.init,
             .min_latency = std.atomic.Value(u64).init(std.math.maxInt(u64)),
             .max_latency = std.atomic.Value(u64).init(0),
             .total_latency = std.atomic.Value(u64).init(0),
@@ -91,8 +132,8 @@ pub const Metrics = struct {
         }
 
         // Append to latencies with mutex protection
-        self.latencies_mutex.lock();
-        defer self.latencies_mutex.unlock();
+        self.latencies_mutex.lockUncancelable(self.io);
+        defer self.latencies_mutex.unlock(self.io);
         try self.latencies.append(self.allocator, latency_us);
     }
 
@@ -164,6 +205,7 @@ pub const Metrics = struct {
             std.debug.print("P50 (median):      {d} µs\n", .{self.percentile(0.50)});
             std.debug.print("P95:               {d} µs\n", .{self.percentile(0.95)});
             std.debug.print("P99:               {d} µs\n", .{self.percentile(0.99)});
+            std.debug.print("P99.9:             {d} µs\n", .{self.percentile(0.999)});
 
             // Convert to milliseconds for readability
             const avg_ms = self.avgLatency() / 1000.0;
@@ -195,6 +237,7 @@ pub const Timer = struct {
 /// MetricsTracker for YCSB workloads - tracks per-operation type metrics
 pub const MetricsTracker = struct {
     allocator: std.mem.Allocator,
+    io: Io,
 
     read_metrics: ?*Metrics,
     insert_metrics: ?*Metrics,
@@ -204,10 +247,12 @@ pub const MetricsTracker = struct {
     rmw_metrics: ?*Metrics,
 
     total_operations: usize,
+    run_start_time: i64,
 
-    pub fn init(allocator: std.mem.Allocator) !MetricsTracker {
+    pub fn init(allocator: std.mem.Allocator, io: Io) !MetricsTracker {
         return .{
             .allocator = allocator,
+            .io = io,
             .read_metrics = null,
             .insert_metrics = null,
             .update_metrics = null,
@@ -215,18 +260,31 @@ pub const MetricsTracker = struct {
             .scan_metrics = null,
             .rmw_metrics = null,
             .total_operations = 0,
+            .run_start_time = 0,
         };
     }
-    
+
     pub fn deinit(self: *MetricsTracker) void {
-        if (self.read_metrics) |m| { m.deinit(); }
-        if (self.insert_metrics) |m| { m.deinit(); }
-        if (self.update_metrics) |m| { m.deinit(); }
-        if (self.delete_metrics) |m| { m.deinit(); }
-        if (self.scan_metrics) |m| { m.deinit(); }
-        if (self.rmw_metrics) |m| { m.deinit(); }
+        if (self.read_metrics) |m| {
+            m.deinit();
+        }
+        if (self.insert_metrics) |m| {
+            m.deinit();
+        }
+        if (self.update_metrics) |m| {
+            m.deinit();
+        }
+        if (self.delete_metrics) |m| {
+            m.deinit();
+        }
+        if (self.scan_metrics) |m| {
+            m.deinit();
+        }
+        if (self.rmw_metrics) |m| {
+            m.deinit();
+        }
     }
-    
+
     pub fn reset(self: *MetricsTracker) void {
         self.deinit();
         self.read_metrics = null;
@@ -236,8 +294,9 @@ pub const MetricsTracker = struct {
         self.scan_metrics = null;
         self.rmw_metrics = null;
         self.total_operations = 0;
+        self.run_start_time = milliTimestamp();
     }
-    
+
     pub fn record(self: *MetricsTracker, op_type: @import("operation_chooser.zig").OperationType, latency_us: i64, success: bool) !void {
         const latency: u64 = @intCast(@max(0, latency_us));
 
@@ -257,7 +316,7 @@ pub const MetricsTracker = struct {
                 m.recordFailure();
             }
         } else {
-            const m = try Metrics.init(self.allocator);
+            const m = try Metrics.init(self.allocator, self.io);
             m.start();
             if (success) {
                 try m.recordSuccess(latency);
@@ -269,7 +328,7 @@ pub const MetricsTracker = struct {
 
         self.total_operations += 1;
     }
-    
+
     pub fn printOperationStats(self: *MetricsTracker, op_type: @import("operation_chooser.zig").OperationType) !void {
         const metrics_opt = switch (op_type) {
             .read => self.read_metrics,

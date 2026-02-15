@@ -3,6 +3,7 @@ const shinydb = @import("shinydb_zig_client");
 const ShinyDbClient = shinydb.ShinyDbClient;
 const Query = shinydb.Query;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 const proto = @import("proto");
 
 const distributions = @import("../distributions.zig");
@@ -52,20 +53,21 @@ pub const WorkloadE = struct {
     key_distribution: distributions.Distribution,
     op_chooser: operation_chooser.OperationChooser,
     keys: std.ArrayList(u128),
+    io: Io,
     metrics_tracker: metrics.MetricsTracker,
     scan_length: usize,
     field_data: []const u8,
 
     pub const Config = struct {
-        record_count: usize = 10_000,
-        operation_count: usize = 10_000,
+        record_count: usize = 1_000,
+        operation_count: usize = 1_000,
         document_size: usize = 1024,
         thread_count: usize = 1,
-        warmup_ops: usize = 1_000,
-        scan_length: usize = 100, // Number of records to scan
+        warmup_ops: usize = 100,
+        scan_length: usize = 10, // Max records per scan (YCSB standard: uniform 1-100, but 10 for practical use)
     };
 
-    pub fn init(allocator: Allocator, client: *ShinyDbClient, space_name: []const u8, store_name: []const u8, config: Config) !WorkloadE {
+    pub fn init(allocator: Allocator, io: Io, client: *ShinyDbClient, space_name: []const u8, store_name: []const u8, config: Config) !WorkloadE {
         const prng = try allocator.create(std.Random.DefaultPrng);
         prng.* = std.Random.DefaultPrng.init(@intCast(metrics.milliTimestamp()));
         const random = prng.random();
@@ -95,8 +97,9 @@ pub const WorkloadE = struct {
             .prng = prng,
             .key_distribution = key_dist,
             .op_chooser = op_choose,
+            .io = io,
             .keys = std.ArrayList(u128).empty,
-            .metrics_tracker = try metrics.MetricsTracker.init(allocator),
+            .metrics_tracker = try metrics.MetricsTracker.init(allocator, io),
             .scan_length = config.scan_length,
             .field_data = field_data,
         };
