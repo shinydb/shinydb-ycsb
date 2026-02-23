@@ -6,13 +6,13 @@ host: 127.0.0.1
 port: 23469
 
 # Workload Settings
-record_count: 1000
-operation_count: 1000
+record_count: 100000
+operation_count: 100000
 document_size: 1024
 store_id: 1
 
 # Concurrency Settings
-thread_count: 1
+thread_count: 4
 batch_size: 100
 
 # Timing Settings

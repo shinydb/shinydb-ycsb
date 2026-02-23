@@ -155,9 +155,21 @@ pub const LatestDistribution = struct {
     }
 
     /// Update the maximum key (call this when new keys are inserted)
+    /// Incrementally updates zeta_n in O(1) instead of recomputing from scratch in O(n)
     pub fn updateMaxKey(self: *LatestDistribution, new_max: u64) void {
+        if (new_max <= self.max_key) return;
+        // Incrementally add new terms to zeta_n
+        var i = self.zipfian.count_for_zeta + 1;
+        while (i <= new_max + 1) : (i += 1) {
+            self.zipfian.zeta_n += 1.0 / std.math.pow(f64, @as(f64, @floatFromInt(i)), self.zipfian.theta);
+        }
         self.max_key = new_max;
-        self.zipfian = ZipfianDistribution.init(self.random, 0, new_max);
+        self.zipfian.max = new_max;
+        self.zipfian.count_for_zeta = new_max + 1;
+        // Recompute eta (O(1))
+        const items_f: f64 = @as(f64, @floatFromInt(new_max + 1));
+        self.zipfian.eta = (1.0 - std.math.pow(f64, 2.0 / items_f, 1.0 - self.zipfian.theta)) /
+            (1.0 - self.zipfian.zeta_2 / self.zipfian.zeta_n);
     }
 
     pub fn next(self: *LatestDistribution) u64 {
@@ -187,6 +199,7 @@ pub fn createDistribution(dist_type: DistributionType, random: Random, min: u64,
 test "uniform distribution" {
     var prng = std.Random.DefaultPrng.init(0);
     const random = prng.random();
+    
     var dist = UniformDistribution.init(random, 0, 100);
 
     var i: usize = 0;
