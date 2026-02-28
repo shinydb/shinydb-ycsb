@@ -10,7 +10,7 @@
 | Document Size | 1024 bytes |
 | Warmup Ops | 100 |
 | Scan Length | 10 |
-| Suite Duration | 51.78 s |
+| Suite Duration | 50.99 s |
 
 ---
 
@@ -18,12 +18,12 @@
 
 | Workload | Description | Mix | Ops | Throughput (ops/s) | Avg Latency (µs) | P99 (µs) | P99.9 (µs) | Errors |
 |----------|-------------|-----|----:|-------------------:|------------------:|---------:|------------:|-------:|
-| A | Update Heavy | 50R/50U | 100000 | 26903.42 | 37.07 | 157 | 213 | 0.0000% |
-| B | Read Mostly | 95R/5U | 100000 | 27662.52 | 36.05 | 160 | 233 | 0.0000% |
-| C | Read Only | 100R | 100000 | 26838.43 | 37.16 | 158 | 227 | 0.0000% |
-| D | Read Latest | 95R/5I | 100000 | 29036.00 | 34.33 | 162 | 245 | 0.0000% |
-| E | Short Ranges | 95S/5I | 100000 | 22727.27 | 43.77 | 159 | 1107 | 0.0000% |
-| F | Read-Modify-Write | 50R/50RMW | 100000 | 16509.82 | 60.46 | 211 | 443 | 0.0000% |
+| A | Update Heavy | 50R/50U | 100000 | 24509.80 | 40.68 | 64 | 85 | 0.0000% |
+| B | Read Mostly | 95R/5U | 100000 | 25464.73 | 39.16 | 61 | 83 | 0.0000% |
+| C | Read Only | 100R | 100000 | 25859.84 | 38.56 | 60 | 81 | 0.0000% |
+| D | Read Latest | 95R/5I | 100000 | 26759.43 | 37.23 | 59 | 81 | 0.0000% |
+| E | Short Ranges | 95S/5I | 100000 | 24055.81 | 41.44 | 64 | 97 | 0.0000% |
+| F | Read-Modify-Write | 50R/50RMW | 100000 | 16217.97 | 61.51 | 108 | 145 | 0.0000% |
 
 ---
 
@@ -36,31 +36,31 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 3717 |
+| Runtime (ms) | 4080 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **26903.42** |
+| **Throughput (ops/s)** | **24509.80** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
 | Min | 26 |
-| Average | 37.07 |
-| P50 (median) | 33 |
-| P95 | 45 |
-| P99 | 157 |
-| **P99.9** | **213** |
-| Max | 1987 |
+| Average | 40.68 |
+| P50 (median) | 40 |
+| P95 | 48 |
+| P99 | 64 |
+| **P99.9** | **85** |
+| Max | 327 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| READ | 49923 | 35.76 | 31 | 43 | 156 | 207 |
-| UPDATE | 50077 | 38.39 | 34 | 46 | 158 | 213 |
+| READ | 50397 | 39.62 | 39 | 46 | 62 | 82 |
+| UPDATE | 49603 | 41.75 | 41 | 49 | 66 | 89 |
 
 
 ### Workload B — Read Mostly
@@ -70,31 +70,31 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 3615 |
+| Runtime (ms) | 3927 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **27662.52** |
+| **Throughput (ops/s)** | **25464.73** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
 | Min | 22 |
-| Average | 36.05 |
-| P50 (median) | 32 |
-| P95 | 45 |
-| P99 | 160 |
-| **P99.9** | **233** |
-| Max | 1641 |
+| Average | 39.16 |
+| P50 (median) | 38 |
+| P95 | 46 |
+| P99 | 61 |
+| **P99.9** | **83** |
+| Max | 171 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| READ | 94983 | 35.87 | 32 | 45 | 160 | 233 |
-| UPDATE | 5017 | 39.36 | 35 | 50 | 167 | 245 |
+| READ | 94981 | 39.02 | 38 | 46 | 61 | 83 |
+| UPDATE | 5019 | 41.65 | 41 | 49 | 65 | 80 |
 
 
 ### Workload C — Read Only
@@ -104,30 +104,30 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 3726 |
+| Runtime (ms) | 3867 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **26838.43** |
+| **Throughput (ops/s)** | **25859.84** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
 | Min | 25 |
-| Average | 37.16 |
-| P50 (median) | 32 |
-| P95 | 50 |
-| P99 | 158 |
-| **P99.9** | **227** |
-| Max | 1566 |
+| Average | 38.56 |
+| P50 (median) | 38 |
+| P95 | 45 |
+| P99 | 60 |
+| **P99.9** | **81** |
+| Max | 277 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| READ | 100000 | 37.16 | 32 | 50 | 158 | 227 |
+| READ | 100000 | 38.56 | 38 | 45 | 60 | 81 |
 
 
 ### Workload D — Read Latest
@@ -137,31 +137,31 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 3444 |
+| Runtime (ms) | 3737 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **29036.00** |
+| **Throughput (ops/s)** | **26759.43** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
 | Min | 20 |
-| Average | 34.33 |
-| P50 (median) | 29 |
+| Average | 37.23 |
+| P50 (median) | 36 |
 | P95 | 46 |
-| P99 | 162 |
-| **P99.9** | **245** |
-| Max | 804 |
+| P99 | 59 |
+| **P99.9** | **81** |
+| Max | 1068 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| READ | 94926 | 33.77 | 29 | 44 | 162 | 239 |
-| INSERT | 5074 | 44.90 | 37 | 95 | 172 | 329 |
+| READ | 94855 | 36.73 | 36 | 44 | 58 | 78 |
+| INSERT | 5145 | 46.50 | 43 | 53 | 72 | 609 |
 
 
 ### Workload E — Short Ranges
@@ -171,31 +171,31 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 4400 |
+| Runtime (ms) | 4157 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **22727.27** |
+| **Throughput (ops/s)** | **24055.81** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
-| Min | 22 |
-| Average | 43.77 |
-| P50 (median) | 35 |
-| P95 | 57 |
-| P99 | 159 |
-| **P99.9** | **1107** |
-| Max | 44763 |
+| Min | 24 |
+| Average | 41.44 |
+| P50 (median) | 39 |
+| P95 | 48 |
+| P99 | 64 |
+| **P99.9** | **97** |
+| Max | 176994 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| INSERT | 4954 | 74.67 | 40 | 146 | 362 | 3306 |
-| SCAN | 95046 | 42.16 | 34 | 54 | 142 | 912 |
+| INSERT | 5120 | 81.12 | 43 | 53 | 78 | 575 |
+| SCAN | 94880 | 39.30 | 38 | 47 | 63 | 88 |
 
 
 ### Workload F — Read-Modify-Write
@@ -205,31 +205,31 @@
 
 | Metric | Value |
 |--------|------:|
-| Runtime (ms) | 6057 |
+| Runtime (ms) | 6166 |
 | Total Operations | 100000 |
 | Successful | 100000 |
 | Failed | 0 |
 | Error Rate (%) | 0.0000 |
-| **Throughput (ops/s)** | **16509.82** |
+| **Throughput (ops/s)** | **16217.97** |
 
 #### Latency Distribution (µs)
 
 | Metric | Value |
 |--------|------:|
 | Min | 27 |
-| Average | 60.46 |
-| P50 (median) | 61 |
-| P95 | 158 |
-| P99 | 211 |
-| **P99.9** | **443** |
-| Max | 2201 |
+| Average | 61.51 |
+| P50 (median) | 69 |
+| P95 | 92 |
+| P99 | 108 |
+| **P99.9** | **145** |
+| Max | 21795 |
 
 #### Per-Operation Breakdown
 
 | Operation | Ops | Avg (µs) | P50 (µs) | P95 (µs) | P99 (µs) | P99.9 (µs) |
 |-----------|----:|---------:|---------:|---------:|---------:|-----------:|
-| READ | 49963 | 42.44 | 32 | 141 | 176 | 382 |
-| READ-MODIFY-WRITE | 50037 | 78.45 | 66 | 181 | 229 | 470 |
+| READ | 49920 | 41.35 | 39 | 53 | 65 | 89 |
+| READ-MODIFY-WRITE | 50080 | 81.61 | 79 | 98 | 116 | 164 |
 
 
 ---

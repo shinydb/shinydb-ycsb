@@ -9,40 +9,46 @@ against the detailed `shinydb-ycsb/benchmark_report.md` results.
 
 | Workload | MongoDB Ops/sec | MongoDB Avg Latency | MongoDB P99 | ShinyDB Ops/sec | ShinyDB Avg Latency | ShinyDB P99 | Notes                                           |
 | -------- | --------------: | ------------------: | ----------: | --------------: | ------------------: | ----------: | ----------------------------------------------- |
-| A        |           9,820 |              100 µs |      135 µs |      **26,525** |         **37.6 µs** |      156 µs | 50/50 read/update (~2.7× throughput)            |
-| B        |           9,775 |              101 µs |      136 µs |      **27,495** |         **36.3 µs** |      155 µs | 95/5 read/update (~2.8× throughput)             |
-| C        |           9,642 |              102 µs |      145 µs |      **27,910** |         **35.7 µs** |      155 µs | read-only (~2.9× throughput)                    |
-| D        |           5,564 |              121 µs |      233 µs |      **31,387** |         **31.8 µs** |      156 µs | read latest (~5.6× throughput)                  |
-| E        |           5,229 |              131 µs |      179 µs |      **29,833** |         **33.4 µs** |       50 µs | short ranges (~5.7× throughput; much lower P99) |
-| F        |           6,547 |              151 µs |      237 µs |      **17,749** |         **56.2 µs** |      182 µs | read‑modify‑write (~2.7× throughput)            |
+| A        |           9,820 |              100 µs |      135 µs |    **24,509.8** |         **40.7 µs** |       64 µs | 50/50 read/update (~2.5× throughput)            |
+| B        |           9,775 |              101 µs |      136 µs |    **25,464.7** |         **39.2 µs** |       61 µs | 95/5 read/update (~2.6× throughput)             |
+| C        |           9,642 |              102 µs |      145 µs |    **25,859.8** |         **38.6 µs** |       60 µs | read-only (~2.7× throughput)                    |
+| D        |           5,564 |              121 µs |      233 µs |    **26,759.4** |         **37.2 µs** |       59 µs | read latest (~4.8× throughput)                  |
+| E        |           5,229 |              131 µs |      179 µs |    **24,055.8** |         **41.4 µs** |       64 µs | short ranges (~4.6× throughput; much lower P99) |
+| F        |           6,547 |              151 µs |      237 µs |    **16,218.0** |         **61.5 µs** |      108 µs | read‑modify‑write (~2.5× throughput)            |
 
-> **Key point:** ShinyDB consistently delivers **2–6× higher throughput**
+> **Key point:** ShinyDB consistently delivers **~2.5–4.8× higher throughput**
 > with substantially lower average latencies. The P99 figures are
 > comparable or better in every workload except A–C where ShinyDB's P99 is
 > slightly higher (155 µs vs 135–145 µs).
+> with substantially lower average latencies. ShinyDB's P99 values are
+> substantially lower than the MongoDB figures in every workload (ShinyDB
+> P99s range 59–108 µs vs MongoDB's 135–237 µs), indicating much tighter
+> tail latency.
 
 ## 2. Latency distributions
 
 - MongoDB averages float around 100 µs for the first three workloads,
   increasing to 150 µs for F. P95/P99 ranges climb accordingly.
-- ShinyDB latencies remain below 60 µs on average for all workloads,
-  dropping into the low‑30 µs range for read‑heavy mixes. P99/P99.9 are
-  typically under 225 µs and in some cases extremely low (50 µs on E).
+- ShinyDB average latencies remain below ~62 µs for all workloads and
+  sit in the high‑30 µs range for read‑heavy mixes. P99 values are between
+  59–108 µs and P99.9 values in the report are similarly low (e.g. 81–145 µs
+  across workloads), with workload E showing a modest tail at P99.9 (97 µs)
+  but otherwise tight tails.
 
 ## 3. Throughput analysis
 
 ShinyDB's performance advantage grows with more read‑intensive or
 range‑based workloads (D/E), where MongoDB throughput is about 5 k ops/s
-and ShinyDB exceeds 29 k ops/s. Write‑heavy mixes (A/F) still show a
-2–3× improvement.
+and ShinyDB ranges from ~24k–26.7k ops/s. Write‑heavy mixes (A/F) show a
+~2.5× improvement.
 
 ## 4. Observations and implications
 
 - **Scalability:** ShinyDB appears to scale better under varying mixes,
   suggesting more efficient data structures or concurrency control.
-- **Tail latency:** ShinyDB's P99 and P99.9 metrics are competitive and
-  sometimes **dramatically lower** (workload E) than MongoDB's, which
-  indicates tighter control over worst‑case path lengths.
+- **Tail latency:** ShinyDB's P99 and P99.9 metrics are consistently much
+  lower than MongoDB's across all workloads, indicating tighter control
+  over worst‑case path lengths and lower tail risk for end‑users.
 - **Stability:** Both systems report zero errors in the YCSB runs, so
   comparisons focus purely on performance.
 
